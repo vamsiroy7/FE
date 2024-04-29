@@ -1,0 +1,53 @@
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, Dropout
+
+def generate_features(df, labels):
+    # Assuming df is a DataFrame containing the feature data
+    # Convert DataFrame to numpy array for processing with TensorFlow
+    data = df.values
+    labels = labels.values if isinstance(labels, pd.Series) else np.array(labels)
+    
+    # Split data (this part should be handled outside this function in a real scenario)
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, random_state=42)
+    
+    # Define the full model
+    full_model = Sequential([
+        Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
+        Dropout(0.2),
+        Dense(64, activation='relu'),
+        Dense(32, activation='relu'),  # We'll extract features from here
+        Dense(1, activation='sigmoid')  # Example for a binary classification task
+    ])
+
+    # Compile the model
+    full_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+    # Train the model
+    full_model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.1)
+
+    # Create a feature extraction model using outputs from the third layer
+    feature_model = Model(inputs=full_model.input, outputs=full_model.layers[3].output)
+
+    # Use the feature model to transform the data
+    X_train_transformed = feature_model.predict(X_train)
+    X_test_transformed = feature_model.predict(X_test)
+
+    # Create DataFrames that include original and new features
+    transformed_train_df = pd.DataFrame(X_train_transformed, columns=[f'Transformed_Feature_{i}' for i in range(X_train_transformed.shape[1])])
+    transformed_test_df = pd.DataFrame(X_test_transformed, columns=[f'Transformed_Feature_{i}' for i in range(X_test_transformed.shape[1])])
+    train_df = pd.concat([df.iloc[:len(X_train)].reset_index(drop=True), transformed_train_df], axis=1)
+    test_df = pd.concat([df.iloc[len(X_train):].reset_index(drop=True), transformed_test_df], axis=1)
+
+    # Return the DataFrames containing original and new features
+    return train_df, test_df
+
+# Example usage
+data = pd.DataFrame(np.random.rand(100, 10))  # Random data with 100 samples, 10 features
+labels = pd.Series(np.random.randint(0, 2, 100))  # Random binary labels
+train_df, test_df = generate_features(data, labels)
+print(train_df.head())
+print(test_df.head())
