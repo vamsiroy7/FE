@@ -1,0 +1,32 @@
+# Define the function from the previous example
+def generate_features_with_autoencoder(df):
+    from tensorflow.keras.models import Model
+    from tensorflow.keras.layers import Input, Dense
+
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("Input must be a pandas DataFrame.")
+    
+    data = df.values
+    num_features = data.shape[1]
+
+    input_layer = Input(shape=(num_features,))
+    encoded = Dense(max(1, num_features // 2), activation='relu')(input_layer)
+    decoded = Dense(num_features, activation='sigmoid')(encoded)
+
+    autoencoder = Model(input_layer, decoded)
+    encoder = Model(input_layer, encoded)
+
+    autoencoder.compile(optimizer='adam', loss='mse')
+    autoencoder.fit(data, data, epochs=50, batch_size=256, verbose=0)
+
+    new_features = encoder.predict(data)
+    new_features_df = pd.DataFrame(new_features, index=df.index)
+    new_features_df.columns = [f'encoded_feature_{i}' for i in range(new_features_df.shape[1])]
+
+    df_with_features = pd.concat([df, new_features_df], axis=1)
+    return df_with_features
+
+# Apply the function to the DataFrame
+df_with_features = generate_features_with_autoencoder(df)
+
+df_with_features
