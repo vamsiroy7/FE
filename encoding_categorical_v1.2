@@ -1,0 +1,89 @@
+from sklearn.preprocessing import OneHotEncoder
+import pandas as pd
+import numpy as np
+
+def encode_categorical_features(df, cat_cols, target_col=None):
+    """
+    Apply various encodings to categorical columns in a DataFrame, including one-hot encoding,
+    count frequency encoding, mean encoding, and weight of evidence (WOE). Treats null values
+    in categorical columns as a specific category ("Missing").
+
+    Args:
+    - df (DataFrame): The input DataFrame.
+    - cat_cols (list): List of categorical column names to be encoded.
+    - target_col (str, optional): The target column name for mean and WOE encoding.
+
+    Returns:
+    - DataFrame: The DataFrame with original and encoded features.
+    - dict: Dictionary with lists of new column names for each encoding method.
+    """
+    # Initialize OneHotEncoder
+    encoder = OneHotEncoder()
+    new_columns_info = {}
+    df_original = df.copy()  # Keep original data
+
+    for col in cat_cols:
+        # Fill null values with a string to represent missing data
+        df_original[col].fillna('Missing', inplace=True)
+
+        # Perform one-hot encoding
+        one_hot_encoded = encoder.fit_transform(df_original[[col]])
+        one_hot_encoded_df = pd.DataFrame(one_hot_encoded.toarray(), columns=encoder.get_feature_names_out([col]))
+        df = pd.concat([df, one_hot_encoded_df], axis=1)
+        new_columns_info[col + '_one_hot'] = list(one_hot_encoded_df.columns)
+
+        # Perform count frequency encoding
+        counts = df_original[col].value_counts().to_dict()
+        df[col + '_count'] = df_original[col].map(counts)
+        new_columns_info[col + '_count'] = [col + '_count']
+
+        if target_col:
+            # Perform mean encoding
+            mean_values = df_original.groupby(col)[target_col].mean()
+            df[col + '_mean_encoded'] = df_original[col].map(mean_values)
+            new_columns_info[col + '_mean'] = [col + '_mean_encoded']
+
+            # Perform WOE encoding
+            total_good = df_original[target_col].value_counts()[0]  # Assuming 0 is good label
+            total_bad = df_original[target_col].value_counts()[1]  # Assuming 1 is bad label
+            category_counts = df_original.groupby(col)[target_col].value_counts().unstack().fillna(0)
+            category_counts['good_prop'] = category_counts[0] / total_good
+            category_counts['bad_prop'] = category_counts[1] / total_bad
+            category_counts['good_prop'] = category_counts['good_prop'].replace(0, np.nan).fillna(0)
+            category_counts['bad_prop'] = category_counts['bad_prop'].replace(0, np.nan).fillna(0)
+            category_counts['woe'] = np.log(category_counts['good_prop'] / category_counts['bad_prop'].replace(0, np.nan))
+            woe_dict = category_counts['woe'].to_dict()
+            df[col + '_woe'] = df_original[col].map(woe_dict)
+            new_columns_info[col + '_woe'] = [col + '_woe']
+
+    return df, new_columns_info
+
+
+
+
+import pandas as pd
+
+# Sample data
+data = {
+    'Gender': ['Male', 'Female', 'Female', 'Male', 'Female', 'Male', 'Female', 'Male'],
+    'Occupation': ['Engineer', 'Doctor', 'Artist', 'Engineer', 'Artist', 'Doctor', 'Doctor', 'Engineer'],
+    'Target': [1, 0, 1, 0, 1, 0, 1, 0]
+}
+
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Categorical columns to encode
+categorical_columns = ['Gender']
+
+# Function import (assuming the function from above is already imported)
+# from your_module import encode_categorical_features  # If the function is in a separate module
+
+# Apply the function
+encoded_df, new_columns_info = encode_categorical_features(df, categorical_columns, 'Target')
+
+# Display the results
+print("Encoded DataFrame:")
+print(encoded_df)
+print("\nNew Columns Information:")
+print(new_columns_info)
