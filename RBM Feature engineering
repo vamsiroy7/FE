@@ -1,0 +1,49 @@
+import numpy as np
+import pandas as pd
+from sklearn.neural_network import BernoulliRBM
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+
+def process_data(df, labels):
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(df.values, labels, test_size=0.2, random_state=42)
+
+    # Data scaling
+    scaler = MinMaxScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # RBM configuration
+    rbm = BernoulliRBM(n_components=5, learning_rate=0.1, n_iter=100, random_state=42)
+    logistic = LogisticRegression(max_iter=1000)
+    pipeline = Pipeline(steps=[('rbm', rbm), ('logistic', logistic)])
+
+    # Training
+    pipeline.fit(X_train_scaled, y_train)
+
+    # Extract transformed features
+    X_train_transformed = pipeline.named_steps['rbm'].transform(X_train_scaled)
+    X_test_transformed = pipeline.named_steps['rbm'].transform(X_test_scaled)
+
+    # Evaluation
+    accuracy = pipeline.score(X_test_scaled, y_test)
+    
+    # Concatenate transformed features with original dataset for training and testing
+    train_features_df = pd.DataFrame(np.hstack((X_train, X_train_transformed)), columns=[f'Feature_{i}' for i in range(X_train.shape[1])] + [f'Transformed_{i}' for i in range(X_train_transformed.shape[1])])
+    test_features_df = pd.DataFrame(np.hstack((X_test, X_test_transformed)), columns=[f'Feature_{i}' for i in range(X_test.shape[1])] + [f'Transformed_{i}' for i in range(X_test_transformed.shape[1])])
+
+    # Return model accuracy and DataFrames containing original and transformed features
+    return accuracy, train_features_df, test_features_df
+
+# Example usage with random data
+data = np.random.rand(100, 10)  # 100 samples, 10 features
+df = pd.DataFrame(data)
+labels = np.random.randint(0, 2, 100)  # Binary labels
+
+# Process data and get results
+accuracy, train_features_df, test_features_df = process_data(df, labels)
+print("Model accuracy:", accuracy)
+print("Training features with transformed variables:\n", train_features_df.head())
+print("Testing features with transformed variables:\n", test_features_df.head())
