@@ -13,41 +13,41 @@ def encode_categorical_features(df, cat_cols, target_col=None):
     - target_col (str, optional): The target column name for mean and WOE encoding.
 
     Returns:
-    - DataFrame: The DataFrame with original and encoded features.
+    - DataFrame: The DataFrame with only transformed (encoded) features.
     - dict: Dictionary with lists of new column names for each encoding method.
     """
+    transformed_data = pd.DataFrame()  # DataFrame to hold only transformed features
     new_columns_info = {}
-    df_original = df.copy()  # Keep original data for encoding processes
+
+    df_filled = df.copy()  # Copy of the DataFrame for manipulation
+    df_filled[cat_cols] = df_filled[cat_cols].fillna('Missing')  # Handle missing values
 
     for col in cat_cols:
-        # Fill null values with a string to represent missing data
-        df_original[col].fillna('Missing', inplace=True)
-
         # Perform one-hot encoding using get_dummies
-        one_hot_encoded_df = pd.get_dummies(df_original[col], prefix=col)
-        df = pd.concat([df, one_hot_encoded_df], axis=1)
+        one_hot_encoded_df = pd.get_dummies(df_filled[col], prefix=col)
+        transformed_data = pd.concat([transformed_data, one_hot_encoded_df], axis=1)
         new_columns_info[col + '_one_hot'] = list(one_hot_encoded_df.columns)
 
         # Perform count frequency encoding
-        counts = df_original[col].value_counts().to_dict()
-        df[col + '_count'] = df_original[col].map(counts)
+        counts = df_filled[col].value_counts().to_dict()
+        transformed_data[col + '_count'] = df_filled[col].map(counts)
         new_columns_info[col + '_count'] = [col + '_count']
 
         if target_col:
             # Perform mean encoding
-            mean_values = df_original.groupby(col)[target_col].mean()
-            df[col + '_mean_encoded'] = df_original[col].map(mean_values)
+            mean_values = df_filled.groupby(col)[target_col].mean()
+            transformed_data[col + '_mean_encoded'] = df_filled[col].map(mean_values)
             new_columns_info[col + '_mean'] = [col + '_mean_encoded']
 
             # Perform WOE encoding
-            total_good = df_original[target_col].value_counts().get(0, 0.5)  # Smoothing with 0.5 to avoid division by zero
-            total_bad = df_original[target_col].value_counts().get(1, 0.5)
-            category_counts = df_original.groupby(col)[target_col].value_counts().unstack().fillna(0.5)  # Smoothing
+            total_good = df_filled[target_col].value_counts().get(0, 0.5)  # Smoothing
+            total_bad = df_filled[target_col].value_counts().get(1, 0.5)
+            category_counts = df_filled.groupby(col)[target_col].value_counts().unstack().fillna(0.5)
             category_counts['good_prop'] = category_counts[0] / total_good
             category_counts['bad_prop'] = category_counts[1] / total_bad
             category_counts['woe'] = np.log(category_counts['good_prop'] / category_counts['bad_prop'])
             woe_dict = category_counts['woe'].to_dict()
-            df[col + '_woe'] = df_original[col].map(woe_dict)
+            transformed_data[col + '_woe'] = df_filled[col].map(woe_dict)
             new_columns_info[col + '_woe'] = [col + '_woe']
 
-    return df, new_columns_info
+    return transformed_data, new_columns_info
