@@ -4,8 +4,8 @@ import numpy as np
 
 def encode_categorical_features(df, cat_cols, target_col=None):
     """
-    Apply various encodings to categorical columns in a DataFrame, including one-hot encoding, 
-    count frequency encoding, mean encoding, and weight of evidence (WOE). Treats null values 
+    Apply various encodings to categorical columns in a DataFrame, including one-hot encoding,
+    count frequency encoding, mean encoding, and weight of evidence (WOE). Treats null values
     in categorical columns as a specific category ("Missing").
 
     Args:
@@ -21,43 +21,44 @@ def encode_categorical_features(df, cat_cols, target_col=None):
     transformed_data = pd.DataFrame()  # Empty DataFrame to hold transformed features
     new_columns_info = {}
 
-    for col in cat_cols:
-        # Fill null values with a string to represent missing data
-        df[col].fillna('Missing', inplace=True)
+    # Handling null values uniformly at the beginning
+    df_filled = df.copy()
+    df_filled[cat_cols] = df_filled[cat_cols].fillna('Missing')
 
-        # Perform one-hot encoding
-        one_hot_encoded = encoder.fit_transform(df[[col]])
+    for col in cat_cols:
+        # One-hot encoding
+        one_hot_encoded = encoder.fit_transform(df_filled[[col]])
         one_hot_encoded_df = pd.DataFrame(one_hot_encoded.toarray(), columns=encoder.get_feature_names_out([col]))
         transformed_data = pd.concat([transformed_data, one_hot_encoded_df], axis=1)
         new_columns_info[col + '_one_hot'] = list(one_hot_encoded_df.columns)
 
-        # Perform count frequency encoding
-        counts = df[col].value_counts().to_dict()
-        transformed_data[col + '_count'] = df[col].map(counts)
+        # Count frequency encoding
+        counts = df_filled[col].value_counts().to_dict()
+        transformed_data[col + '_count'] = df_filled[col].map(counts)
         new_columns_info[col + '_count'] = [col + '_count']
 
         if target_col:
-            # Perform mean encoding
-            mean_values = df.groupby(col)[target_col].mean()
-            transformed_data[col + '_mean_encoded'] = df[col].map(mean_values)
+            # Mean encoding
+            mean_values = df_filled.groupby(col)[target_col].mean()
+            transformed_data[col + '_mean_encoded'] = df_filled[col].map(mean_values)
             new_columns_info[col + '_mean'] = [col + '_mean_encoded']
 
-            # Perform WOE encoding
-            total_good = df[target_col].value_counts()[0]  # Assuming 0 is good label
-            total_bad = df[target_col].value_counts()[1]  # Assuming 1 is bad label
-            category_counts = df.groupby(col)[target_col].value_counts().unstack().fillna(0)
-            category_counts['good_prop'] = category_counts[0] / total_good
-            category_counts['bad_prop'] = category_counts[1] / total_bad
-            category_counts['woe'] = np.log(category_counts['good_prop'] / category_counts['bad_prop'].replace(0, np.nan))
-            woe_dict = category_counts['woe'].to_dict()
-            transformed_data[col + '_woe'] = df[col].map(woe_dict)
+            # WOE encoding
+            good_bad_counts = df_filled.groupby(col)[target_col].value_counts().unstack().fillna(0.5)  # Adding smoothing
+            total_good = df_filled[target_col].sum() + 0.5
+            total_bad = len(df_filled) - total_good + 0.5
+            good_bad_counts['good_prop'] = good_bad_counts.get(1, 0) / total_good
+            good_bad_counts['bad_prop'] = good_bad_counts.get(0, 0) / total_bad
+            good_bad_counts['woe'] = np.log(good_bad_counts['good_prop'] / good_bad_counts['bad_prop'])
+            woe_dict = good_bad_counts['woe'].to_dict()
+            transformed_data[col + '_woe'] = df_filled[col].map(woe_dict)
             new_columns_info[col + '_woe'] = [col + '_woe']
 
     return transformed_data, new_columns_info
 
-# Applying the modified encoding function
+# Example usage with your DataFrame
 encoded_df, new_columns_info = encode_categorical_features(df, cat_cols, target_col)
 
-# Print the resulting DataFrame and new columns info
+# Output the results
 print(encoded_df)
 print("\nNew columns information:", new_columns_info)
