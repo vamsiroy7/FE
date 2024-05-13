@@ -5,8 +5,8 @@ import warnings
 def impute_missing_values(data, columns, impute_value=0, random_state=0):
     """
     Handles missing values in specified columns using various imputation strategies,
-    and ensures no columns are left with null values post-imputation. Removes any 
-    columns still containing nulls after attempted imputation.
+    reports columns with null values before imputation including the count of nulls,
+    and removes any columns still containing nulls after attempted imputation.
 
     Parameters:
     - data (DataFrame): The input dataframe.
@@ -15,15 +15,20 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
     - random_state (int): Seed for the random number generator, used in random sampling.
 
     Returns:
-    - DataFrame: The dataframe with imputed values, columns free of nulls,
-                 and additional columns indicating imputation.
+    - DataFrame: The dataframe with imputed values, additional columns indicating imputation,
+                 and without any columns that still contain nulls.
     """
     data_copy = data.copy(deep=True)
     
-    # Detect and report columns with null values before imputation
+    # Detect columns with null values before imputation and report
     null_columns_before = data_copy[columns].isnull().sum()
     null_columns_before = null_columns_before[null_columns_before > 0]
-    print("Null columns before imputation:\n", null_columns_before)
+    if not null_columns_before.empty:
+        print("Columns with null values before imputation and their counts:")
+        for col, count in null_columns_before.items():
+            print(f"{col}: {count}")
+    else:
+        print("No columns with null values detected.")
 
     # Handling NA values in specified columns
     for col in columns:
@@ -50,13 +55,14 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
             random_sample.index = data_copy[data_copy[col].isnull()].index
             data_copy[col + '_impute_random'] = data_copy[col].fillna(random_sample)
 
-    # Detect and report columns with null values after imputation
+    # Check and remove any columns that still contain null values after imputation
     null_columns_after = data_copy.isnull().sum()
     null_columns_after = null_columns_after[null_columns_after > 0]
-    print("Null columns after imputation:\n", null_columns_after)
-
-    # Remove columns that still have null values
     if not null_columns_after.empty:
+        print("Columns with null values after imputation (these will be removed):")
+        print(null_columns_after)
         data_copy.drop(columns=null_columns_after.index, inplace=True)
+    else:
+        print("No columns with null values remain after imputation.")
 
     return data_copy
