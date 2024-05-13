@@ -1,0 +1,56 @@
+from sklearn.preprocessing import OneHotEncoder
+import pandas as pd
+import numpy as np
+
+def encode_categorical_features(df, cat_cols, target_col=None, min_category_size=1):
+    """
+    Apply various encodings to categorical columns in a DataFrame, including one-hot encoding,
+    count frequency encoding, mean encoding, and weight of evidence (WOE). Treats null values
+    in categorical columns as a specific category ("Missing").
+
+    Args:
+    - df (DataFrame): The input DataFrame.
+    - cat_cols (list): List of categorical column names to be encoded.
+    - target_col (str, optional): The target column name for mean and WOE encoding.
+    - min_category_size (int): Minimum size of categories to be included in mean and WOE encodings.
+
+    Returns:
+    - DataFrame: The DataFrame with original and encoded features.
+    - dict: Dictionary with lists of new column names for each encoding method.
+    """
+    encoder = OneHotEncoder()
+    new_columns_info = {}
+    df_filled = df.copy()  # Work on a copy to maintain the original data
+    df_filled[cat_cols] = df_filled[cat_cols].fillna('Missing')
+
+    for col in cat_cols:
+        # One-hot encoding
+        one_hot_encoded = encoder.fit_transform(df_filled[[col]])
+        one_hot_encoded_df = pd.DataFrame(one_hot_encoded.toarray(), columns=encoder.get_feature_names_out([col]))
+        df_filled = pd.concat([df_filled, one_hot_encoded_df], axis=1)
+        new_columns_info[col + '_one_hot'] = list(one_hot_encoded_df.columns)
+
+        # Count frequency encoding
+        counts = df_filled[col].value_counts().to_dict()
+        df_filled[col + '_count'] = df_filled[col].map(counts)
+        new_columns_info[col + '_count'] = [col + '_count']
+
+        if target_col and df_filled[target_col].nunique() > 1:  # Check if target_col has at least two unique values
+            # Filter categories to include only those with enough observations
+            sufficient_data = df_filled[col].value_counts() >= min_category_size
+            valid_categories = sufficient_data[sufficient_data].index
+
+            # Mean encoding
+            mean_values = df_filled[df_filled[col].isin(valid_categories)].groupby(col)[target_col].mean()
+            df_filled[col + '_mean_encoded'] = df_filled[col].map(mean_values)
+            new_columns_info[col + '_mean'] = [col + '_mean_encoded']
+
+            # WOE encoding
+            group = df_filled[df_filled[col].isin(valid_categories)].groupby(col)[target_col]
+            good = group.sum()  # Assuming 1 is good
+            bad = group.size() - good
+            woe = np.log((good / good.sum()) / (bad / bad.sum()))
+            df_filled[col + '_woe'] = df_filled[col].map(woe)
+            new_columns_info[col + '_woe'] = [col + '_woe']
+
+    return df_filled, new_columns_info
