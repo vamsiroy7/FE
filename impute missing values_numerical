@@ -6,8 +6,7 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
     """
     Handles missing values in specified columns using various imputation strategies,
     and ensures no columns are left with null values post-imputation. Removes any 
-    columns still containing nulls after attempted imputation. Reports on the state
-    of columns with null values before and after imputation.
+    columns still containing nulls after attempted imputation.
 
     Parameters:
     - data (DataFrame): The input dataframe.
@@ -18,19 +17,13 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
     Returns:
     - DataFrame: The dataframe with imputed values, columns free of nulls,
                  and additional columns indicating imputation.
-    - DataFrame: Columns with nulls before imputation and their count.
     """
     data_copy = data.copy(deep=True)
     
     # Detect and report columns with null values before imputation
     null_columns_before = data_copy[columns].isnull().sum()
     null_columns_before = null_columns_before[null_columns_before > 0]
-    if not null_columns_before.empty:
-        print("Columns with null values before imputation:")
-        print(null_columns_before)
-        print("Total number of columns with nulls before imputation:", null_columns_before.shape[0])
-    else:
-        print("No columns with null values detected before imputation.")
+    print("Null columns before imputation:\n", null_columns_before)
 
     # Handling NA values in specified columns
     for col in columns:
@@ -60,14 +53,10 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
     # Detect and report columns with null values after imputation
     null_columns_after = data_copy.isnull().sum()
     null_columns_after = null_columns_after[null_columns_after > 0]
-    if not null_columns_after.empty:
-        print("Columns with null values after imputation:")
-        print(null_columns_after)
-    else:
-        print("No columns with null values remaining after imputation.")
+    print("Null columns after imputation:\n", null_columns_after)
 
     # Remove columns that still have null values
     if not null_columns_after.empty:
         data_copy.drop(columns=null_columns_after.index, inplace=True)
 
-    return data_copy, null_columns_before
+    return data_copy
