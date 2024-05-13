@@ -4,12 +4,16 @@ def summarize_numerical_data(df):
     # Filter to only numerical columns
     numerical_df = df.select_dtypes(include=['int64', 'float64'])
 
-    # Calculations
+    # Basic calculations
     summary['Unique Values'] = numerical_df.nunique()
     summary['Missing Percentage'] = numerical_df.isnull().mean() * 100
     summary['Minimum Value'] = numerical_df.min()
     summary['Maximum Value'] = numerical_df.max()
     summary['Percentage Negative'] = (numerical_df < 0).mean() * 100
+
+    # Calculating unique positives and negatives
+    summary['Unique Positive Values'] = numerical_df[numerical_df > 0].nunique()
+    summary['Unique Negative Values'] = numerical_df[numerical_df < 0].nunique()
 
     return summary
 
