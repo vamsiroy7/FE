@@ -1,0 +1,58 @@
+import pandas as pd
+import numpy as np
+import warnings
+
+def impute_missing_values(data, columns, impute_value=0, random_state=0):
+    """
+    Handles missing values in specified columns using various imputation strategies.
+    Removes any columns that still contain null values after attempted imputation.
+
+    Parameters:
+    - data (DataFrame): The input dataframe.
+    - columns (list): Columns to process for NA values.
+    - impute_value (int, float): The arbitrary value to impute missing values, default is 0.
+    - random_state (int): Seed for the random number generator, used in random sampling.
+
+    Returns:
+    - DataFrame: The dataframe with imputed values, additional columns indicating imputation,
+                 and without any columns that still contain null values after imputation.
+    """
+    data_copy = data.copy(deep=True)
+
+    # Handling NA values in specified columns
+    for col in columns:
+        if data_copy[col].isnull().sum() > 0:
+            print(f"Column '{col}' has {data_copy[col].isnull().sum()} missing values before imputation.")
+            # Mark columns with missing values
+            data_copy[col + '_is_NA'] = np.where(data_copy[col].isnull(), 1, 0)
+
+            # Impute with a constant value
+            data_copy[col + '_impute_' + str(impute_value)] = data_copy[col].fillna(impute_value)
+
+            # Statistical imputation
+            mean_val = data_copy[col].mean()
+            median_val = data_copy[col].median()
+            mode_val = data_copy[col].mode()[0] if not data_copy[col].mode().empty else np.nan
+            eod_val = mean_val + 3 * data_copy[col].std()
+
+            data_copy[col + '_impute_mean'] = data_copy[col].fillna(mean_val)
+            data_copy[col + '_impute_median'] = data_copy[col].fillna(median_val)
+            data_copy[col + '_impute_mode'] = data_copy[col].fillna(mode_val)
+            data_copy[col + '_impute_end_of_distri'] = data_copy[col].fillna(eod_val)
+
+            # Random sampling imputation
+            random_sample = data_copy[col].dropna().sample(data_copy[col].isnull().sum(), random_state=random_state)
+            random_sample.index = data_copy[data_copy[col].isnull()].index
+            data_copy[col + '_impute_random'] = data_copy[col].fillna(random_sample)
+        else:
+            warnings.warn(f"Column {col} has no missing cases")
+
+    # Check for any columns that still contain null values after imputation and remove them
+    null_columns_post_imputation = [col for col in data_copy.columns if data_copy[col].isnull().any()]
+    if null_columns_post_imputation:
+        print(f"Columns with null values after imputation: {null_columns_post_imputation}")
+        data_copy.drop(columns=null_columns_post_imputation, inplace=True)
+    else:
+        print("No columns have null values after imputation.")
+
+    return data_copy
