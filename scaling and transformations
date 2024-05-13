@@ -1,0 +1,55 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import KBinsDiscretizer, StandardScaler, MinMaxScaler, RobustScaler, PowerTransformer, QuantileTransformer
+
+import warnings
+
+def process_dataframe(data, discretize_columns, feature_names, random_state=0):
+    """
+    Data preprocessing including discretization and feature scaling, and transformations.
+    
+    Parameters:
+    - data (DataFrame): The input dataframe.
+    - discretize_columns (list of str): List of column names to be discretized.
+    - feature_names (list): The list of feature names to be scaled and transformed.
+    - random_state (int): Seed for the random number generator (used in random sampling).
+
+    Returns:
+    - DataFrame: The modified dataframe with additional columns for scaled features and transformations.
+    """
+    data_copy = data.copy(deep=True)
+
+    # Discretization
+    n_bins_list = list(range(2, 8))
+    strategies = ['uniform', 'quantile', 'kmeans']
+    for col in discretize_columns:
+        if data_copy[col].isnull().any():
+            warnings.warn(f"Column '{col}' contains null values which might lead to errors during discretization.")
+        for n_bins in n_bins_list:
+            for strat in strategies:
+                encoder = KBinsDiscretizer(n_bins=n_bins, encode='ordinal', strategy=strat)
+                try:
+                    valid_data = data_copy[[col]].dropna()
+                    new_feature = encoder.fit_transform(valid_data)
+                    full_feature = pd.Series(np.nan, index=data_copy.index)
+                    full_feature[valid_data.index] = new_feature.ravel()
+                    data_copy[f'{col}_{strat}_{n_bins}_bins'] = full_feature
+                except ValueError as e:
+                    warnings.warn(f"Error discretizing column '{col}': {str(e)}")
+
+    # Scaling and Transformations
+    for feature_name in feature_names:
+        ss = StandardScaler().fit(data_copy[[feature_name]])
+        data_copy[feature_name + '_zscore'] = ss.transform(data_copy[[feature_name]])
+        mms = MinMaxScaler().fit(data_copy[[feature_name]])
+        data_copy[feature_name + '_minmax'] = mms.transform(data_copy[[feature_name]])
+        rs = RobustScaler().fit(data_copy[[feature_name]])
+        data_copy[feature_name + '_robust'] = rs.transform(data_copy[[feature_name]])
+
+        pt = PowerTransformer()
+        data_copy[feature_name + '_boxcox'] = pt.fit_transform(data_copy[[feature_name]])
+
+        qt = QuantileTransformer(output_distribution='normal', random_state=random_state)
+        data_copy[feature_name + '_qt'] = qt.fit_transform(data_copy[[feature_name]])
+
+    return data_copy
