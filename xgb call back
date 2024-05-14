@@ -2,24 +2,35 @@ import xgboost as xgb
 
 class SaveModelCallback(xgb.callback.TrainingCallback):
     def __init__(self, save_list):
+        super().__init__()
         self.save_list = save_list
     
     def after_iteration(self, model, epoch, evals_log):
-        """This function gets called after each iteration.
-        
-        Args:
-            model: The booster object.
-            epoch: The current iteration number.
-            evals_log: A dictionary containing evaluation results.
-        
-        Returns:
-            bool: Return True to stop training, False to continue.
-        """
-        self.save_list.append(model.copy())  # Make a copy of the model and save it
-        return False  # Continue training
+        # Append a copy of the model to save_list after each iteration
+        self.save_list.append(model.copy())
+        return False  # Return False to continue training
 
-# Example usage:
-save = []
-params = {'objective': 'binary:logistic', 'eval_metric': ['logloss', 'auc']}
+
+
+# Example parameters and setup for xgboost cross-validation
+params = {
+    'objective': 'binary:logistic',
+    'eval_metric': ['logloss', 'auc']
+}
 n_estimators = 100
-folds_list = xgb.cv(params, dtrain, folds=3, num_boost_round=n_estimators, callbacks=[SaveModelCallback(save)])
+dtrain = xgb.DMatrix(X_train, label=y_train)  # Assuming X_train and y_train are defined
+save = []
+
+# Create the callback instance
+callback_instance = SaveModelCallback(save)
+
+# Perform cross-validation using the callback
+cv_results = xgb.cv(
+    params,
+    dtrain,
+    num_boost_round=n_estimators,
+    folds=3,  # This should be replaced with the correct fold definition, such as a KFold instance
+    callbacks=[callback_instance]
+)
+
+# Now `save` will contain a copy of the model from each iteration
