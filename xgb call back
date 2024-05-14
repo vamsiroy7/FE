@@ -1,0 +1,11 @@
+import xgboost as xgb
+
+class SaveModelCallback(xgb.callback.TrainingCallback):
+    """Custom callback to save models during training."""
+    def __init__(self, save_list):
+        self.save_list = save_list
+
+    def after_iteration(self, model, epoch, evals_log):
+        """This function is called after each boosting iteration."""
+        self.save_list.append(model.copy())  # Use model.copy() to save the current state of the model
+        return False  # Return False to continue training, True would stop training
