@@ -1,26 +1,25 @@
 import xgboost as xgb
 
-params = {...}
-n_estimators = 100
-folds = ...  # Your KFold or other CV strategy
-
-# Storage for metrics
-evals_result = []
-
-class MetricsCallback(xgb.callback.TrainingCallback):
+class SaveModelCallback(xgb.callback.TrainingCallback):
+    def __init__(self, save_list):
+        self.save_list = save_list
+    
     def after_iteration(self, model, epoch, evals_log):
-        if not evals_log:
-            return False
-        evals_result.append(evals_log)
-        return False  # continue training
+        """This function gets called after each iteration.
+        
+        Args:
+            model: The booster object.
+            epoch: The current iteration number.
+            evals_log: A dictionary containing evaluation results.
+        
+        Returns:
+            bool: Return True to stop training, False to continue.
+        """
+        self.save_list.append(model.copy())  # Make a copy of the model and save it
+        return False  # Continue training
 
-# Cross-validation
-cv_results = xgb.cv(
-    params=params,
-    dtrain=xgb.DMatrix(data, label=labels),
-    num_boost_round=n_estimators,
-    folds=folds,
-    callbacks=[MetricsCallback()]
-)
-
-# Now 'evals_result' contains metrics from each iteration
+# Example usage:
+save = []
+params = {'objective': 'binary:logistic', 'eval_metric': ['logloss', 'auc']}
+n_estimators = 100
+folds_list = xgb.cv(params, dtrain, folds=3, num_boost_round=n_estimators, callbacks=[SaveModelCallback(save)])
