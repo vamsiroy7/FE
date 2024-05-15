@@ -1,0 +1,60 @@
+import xgboost as xgb
+from sklearn.model_selection import StratifiedKFold
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification
+from sklearn.metrics import accuracy_score
+
+# Example: Loading synthetic datasets
+X_dev, y_dev = make_classification(n_samples=1000, n_features=20, n_informative=10, n_redundant=10, random_state=42)
+X_val, y_val = make_classification(n_samples=400, n_features=20, n_informative=10, n_redundant=10, random_state=24)
+
+# Custom RFECV function
+def custom_rfecv(estimator, X_dev, y_dev, X_val, y_val, cv, scoring):
+    n_features = X_dev.shape[1]
+    dev_scores = []
+    val_scores = []
+
+    for n in range(1, n_features + 1):
+        # Perform feature elimination
+        X_dev_reduced = X_dev[:, :n]
+        X_val_reduced = X_val[:, :n]
+
+        # Cross-validation on dev set
+        cv_scores = []
+        for train_idx, test_idx in cv.split(X_dev_reduced, y_dev):
+            X_cv_train, X_cv_test = X_dev_reduced[train_idx], X_dev_reduced[test_idx]
+            y_cv_train, y_cv_test = y_dev[train_idx], y_dev[test_idx]
+
+            # Fit the model
+            estimator.fit(X_cv_train, y_cv_train, eval_set=[(X_cv_test, y_cv_test), (X_val_reduced, y_val)], early_stopping_rounds=10, verbose=False)
+
+            # Evaluate on dev set
+            y_dev_pred = estimator.predict(X_cv_test)
+            dev_score = scoring(y_cv_test, y_dev_pred)
+            cv_scores.append(dev_score)
+
+        dev_scores.append(np.mean(cv_scores))
+
+        # Evaluate on validation set
+        y_val_pred = estimator.predict(X_val_reduced)
+        val_score = scoring(y_val, y_val_pred)
+        val_scores.append(val_score)
+
+    return dev_scores, val_scores
+
+# Define the XGBoost model and cross-validation strategy
+xgb_model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+# Perform custom RFECV and plot the results
+dev_scores, val_scores = custom_rfecv(xgb_model, X_dev, y_dev, X_val, y_val, cv, scoring=accuracy_score)
+
+plt.figure()
+plt.xlabel("Number of features selected")
+plt.ylabel("Cross validation score (accuracy)")
+plt.plot(range(1, len(dev_scores) + 1), dev_scores, label='Dev')
+plt.plot(range(1, len(val_scores) + 1), val_scores, label='Validation')
+plt.title('Custom RFECV with XGBoost')
+plt.legend()
+plt.show()
