@@ -30,14 +30,20 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
     else:
         print("No columns with null values detected.")
 
+    transformed_columns = []
+
     # Handling NA values in specified columns
     for col in columns:
         if data_copy[col].isnull().sum() > 0:
             # Mark columns with missing values
-            data_copy[col + '_is_NA'] = np.where(data_copy[col].isnull(), 1, 0)
+            na_col = col + '_is_NA'
+            data_copy[na_col] = np.where(data_copy[col].isnull(), 1, 0)
+            transformed_columns.append(na_col)
 
             # Impute with a constant value
-            data_copy[col + '_impute_' + str(impute_value)] = data_copy[col].fillna(impute_value)
+            impute_col = col + '_impute_' + str(impute_value)
+            data_copy[impute_col] = data_copy[col].fillna(impute_value)
+            transformed_columns.append(impute_col)
 
             # Statistical imputation
             mean_val = data_copy[col].mean()
@@ -45,24 +51,33 @@ def impute_missing_values(data, columns, impute_value=0, random_state=0):
             mode_val = data_copy[col].mode()[0] if not data_copy[col].mode().empty else np.nan
             eod_val = mean_val + 3 * data_copy[col].std()
 
-            data_copy[col + '_impute_mean'] = data_copy[col].fillna(mean_val)
-            data_copy[col + '_impute_median'] = data_copy[col].fillna(median_val)
-            data_copy[col + '_impute_mode'] = data_copy[col].fillna(mode_val)
-            data_copy[col + '_impute_end_of_distri'] = data_copy[col].fillna(eod_val)
+            mean_col = col + '_impute_mean'
+            median_col = col + '_impute_median'
+            mode_col = col + '_impute_mode'
+            eod_col = col + '_impute_end_of_distri'
+
+            data_copy[mean_col] = data_copy[col].fillna(mean_val)
+            data_copy[median_col] = data_copy[col].fillna(median_val)
+            data_copy[mode_col] = data_copy[col].fillna(mode_val)
+            data_copy[eod_col] = data_copy[col].fillna(eod_val)
+
+            transformed_columns.extend([mean_col, median_col, mode_col, eod_col])
 
             # Random sampling imputation
             random_sample = data_copy[col].dropna().sample(data_copy[col].isnull().sum(), random_state=random_state)
             random_sample.index = data_copy[data_copy[col].isnull()].index
-            data_copy[col + '_impute_random'] = data_copy[col].fillna(random_sample)
+            random_col = col + '_impute_random'
+            data_copy[random_col] = data_copy[col].fillna(random_sample)
+            transformed_columns.append(random_col)
 
     # Check and remove any columns that still contain null values after imputation
-    null_columns_after = data_copy.isnull().sum()
+    null_columns_after = data_copy[transformed_columns].isnull().sum()
     null_columns_after = null_columns_after[null_columns_after > 0]
     if not null_columns_after.empty:
         print("Columns with null values after imputation (these will be removed):")
         print(null_columns_after)
-        data_copy.drop(columns=null_columns_after.index, inplace=True)
+        transformed_columns = [col for col in transformed_columns if col not in null_columns_after.index]
     else:
         print("No columns with null values remain after imputation.")
 
-    return data_copy
+    return data_copy[transformed_columns]
