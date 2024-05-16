@@ -1,0 +1,59 @@
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+import pickle
+from sklearn.model_selection import KFold
+from sklearn.datasets import make_classification
+
+# Create synthetic data for binary classification
+data, labels = make_classification(n_samples=1000, n_features=20, n_informative=2, n_redundant=10, random_state=42)
+
+# Parameters for XGBoost
+params = {
+    'objective': 'binary:logistic',
+    'eval_metric': ['logloss', 'auc']
+}
+n_splits = 5  # Number of K-fold splits
+n_estimators = 100
+
+# Setting up KFold cross-validation
+kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+# Manually iterate over each fold
+fold_models = []
+fold_importances = []
+for train_index, test_index in kf.split(data):
+    X_train, X_test = data[train_index], data[test_index]
+    y_train, y_test = labels[train_index], labels[test_index]
+
+    dtrain = xgb.DMatrix(X_train, label=y_train)
+    dtest = xgb.DMatrix(X_test, label=y_test)
+
+    # Train model
+    evals_result = {}
+    model = xgb.train(
+        params,
+        dtrain,
+        num_boost_round=n_estimators,
+        evals=[(dtrain, 'train'), (dtest, 'test')],
+        evals_result=evals_result,
+        early_stopping_rounds=10
+    )
+    
+    # Save the model after training
+    model_path = f"model_fold_{len(fold_models)}.bin"
+    pickle.dump(model, open(model_path, "wb"))
+
+    # Store model in list if needed later
+    fold_models.append(model)
+
+    # Extract feature importances
+    importance = model.get_score(importance_type='weight')  # You can change the importance_type
+    fold_importances.append(importance)
+
+    # Optionally break the loop if early stopping was triggered
+    if model.best_iteration < n_estimators - 1:
+        print(f"Stopped early at iteration {model.best_iteration}")
+
+# fold_models now contains all the models from each fold
+# fold_importances contains feature importances for each model
