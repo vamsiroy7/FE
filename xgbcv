@@ -9,17 +9,22 @@ from sklearn.metrics import accuracy_score
 X_dev, y_dev = make_classification(n_samples=1000, n_features=20, n_informative=10, n_redundant=10, random_state=42)
 X_val, y_val = make_classification(n_samples=400, n_features=20, n_informative=10, n_redundant=10, random_state=24)
 
+# Create feature names for the synthetic dataset
+feature_names = [f'feature_{i}' for i in range(X_dev.shape[1])]
+
 # Custom RFECV function
-def custom_rfecv(estimator, X_dev, y_dev, X_val, y_val, cv, scoring):
+def custom_rfecv(estimator, X_dev, y_dev, X_val, y_val, feature_names, cv, scoring):
     n_features = X_dev.shape[1]
     dev_scores = []
     val_scores = []
     num_features = []
+    selected_features = []
 
     for n in range(1, n_features + 1):
         # Perform feature elimination
         X_dev_reduced = X_dev[:, :n]
         X_val_reduced = X_val[:, :n]
+        current_features = feature_names[:n]
 
         # Cross-validation on dev set
         cv_scores = []
@@ -42,17 +47,18 @@ def custom_rfecv(estimator, X_dev, y_dev, X_val, y_val, cv, scoring):
         val_score = scoring(y_val, y_val_pred)
         val_scores.append(val_score)
 
-        # Append the number of features used
+        # Append the number of features used and the current feature names
         num_features.append(n)
+        selected_features.append(current_features)
 
-    return num_features, dev_scores, val_scores
+    return num_features, dev_scores, val_scores, selected_features
 
 # Define the XGBoost model and cross-validation strategy
 xgb_model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss')
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 # Perform custom RFECV and plot the results
-num_features, dev_scores, val_scores = custom_rfecv(xgb_model, X_dev, y_dev, X_val, y_val, cv, scoring=accuracy_score)
+num_features, dev_scores, val_scores, selected_features = custom_rfecv(xgb_model, X_dev, y_dev, X_val, y_val, feature_names, cv, scoring=accuracy_score)
 
 plt.figure()
 plt.xlabel("Number of features selected")
@@ -63,6 +69,8 @@ plt.title('Custom RFECV with XGBoost')
 plt.legend()
 plt.show()
 
-# Print the number of features and relative scores
-for n, dev_score, val_score in zip(num_features, dev_scores, val_scores):
-    print(f"Number of features: {n}, Dev score: {dev_score:.4f}, Validation score: {val_score:.4f}")
+# Print the number of features, feature names, and relative scores
+for n, features, dev_score, val_score in zip(num_features, selected_features, dev_scores, val_scores):
+    print(f"Number of features: {n}")
+    print(f"Selected features: {features}")
+    print(f"Dev score: {dev_score:.4f}, Validation score: {val_score:.4f}\n")
