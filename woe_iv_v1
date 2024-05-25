@@ -4,7 +4,7 @@ from io import StringIO
 
 # Sample dataset including multiple variables
 data = """
-score_bins,cure15,count,variable,month
+score_bins,cure15,count,var,Data
 A,0,100,Variable1,2021-01
 A,1,20,Variable1,2021-01
 B,0,150,Variable1,2021-01
@@ -34,20 +34,21 @@ C,1,50,Variable2,2022-01
 # Load the sample dataset into a pandas DataFrame
 df = pd.read_csv(StringIO(data))
 
-# Create a function to calculate WoE
-def calculate_woe(df, variable):
-    pivot_table = df[df['variable'] == variable].pivot_table(index='score_bins', columns='month', values='count', aggfunc='sum')
+# Create a function to calculate WoE and IV
+def calculate_woe_iv(df, var):
+    pivot_table = df[df['var'] == var].pivot_table(index='score_bins', columns='Data', values='count', aggfunc='sum')
 
     # Calculate total events and nonevents for each month
-    total_events = df[(df['variable'] == variable) & (df['cure15'] == 0)].groupby('month')['count'].sum()
-    total_nonevents = df[(df['variable'] == variable) & (df['cure15'] == 1)].groupby('month')['count'].sum()
+    total_events = df[(df['var'] == var) & (df['cure15'] == 0)].groupby('Data')['count'].sum()
+    total_nonevents = df[(df['var'] == var) & (df['cure15'] == 1)].groupby('Data')['count'].sum()
 
     # Calculate WoE for each bin and month
     woe = pd.DataFrame(index=pivot_table.index)
+    iv = pd.Series(index=pivot_table.columns)
 
     for month in pivot_table.columns:
-        events_per_bin = df[(df['variable'] == variable) & (df['month'] == month) & (df['cure15'] == 0)].groupby('score_bins')['count'].sum()
-        nonevents_per_bin = df[(df['variable'] == variable) & (df['month'] == month) & (df['cure15'] == 1)].groupby('score_bins')['count'].sum()
+        events_per_bin = df[(df['var'] == var) & (df['Data'] == month) & (df['cure15'] == 0)].groupby('score_bins')['count'].sum()
+        nonevents_per_bin = df[(df['var'] == var) & (df['Data'] == month) & (df['cure15'] == 1)].groupby('score_bins')['count'].sum()
         
         events_per_bin = events_per_bin.fillna(0)
         nonevents_per_bin = nonevents_per_bin.fillna(0)
@@ -56,23 +57,37 @@ def calculate_woe(df, variable):
         events_per_bin = events_per_bin + 1e-10
         nonevents_per_bin = nonevents_per_bin + 1e-10
         
-        woe[month] = np.log((events_per_bin / total_events[month]) / (nonevents_per_bin / total_nonevents[month]))
+        woe[month] = np.log((nonevents_per_bin / total_nonevents[month]) / (events_per_bin / total_events[month]))
+        iv[month] = np.sum((nonevents_per_bin / total_nonevents[month] - events_per_bin / total_events[month]) * woe[month])
 
-    return woe
+    return woe, iv
 
-# Calculate WoE for each variable
-variables = df['variable'].unique()
+# Calculate WoE and IV for each variable
+variables = df['var'].unique()
 all_woe = []
+iv_dict = {}
 
 for var in variables:
-    woe = calculate_woe(df, var)
-    woe['variable'] = var  # Add variable name as a column
+    woe, iv = calculate_woe_iv(df, var)
+    woe['var'] = var  # Add variable name as a column
     all_woe.append(woe)
+    iv_dict[var] = iv
+    # Add two rows of NaNs to create a gap
+    gap = pd.DataFrame(np.nan, index=[0, 1], columns=woe.columns)
+    all_woe.append(gap)
 
 # Concatenate all WoE dataframes into one
-combined_woe = pd.concat(all_woe)
+combined_woe = pd.concat(all_woe).reset_index()
+
+# Convert IV dict to a DataFrame
+iv_df = pd.DataFrame(iv_dict).transpose().reset_index()
+iv_df.columns = ['Variable'] + list(iv_df.columns[1:])
 
 # Save the combined WoE to an Excel file
-combined_woe.to_excel('combined_woe_calculations.xlsx')
+combined_woe.to_excel('combined_woe_calculations.xlsx', index=False)
+
+# Save the IV values to a separate Excel file
+iv_df.to_excel('iv_calculations.xlsx', index=False)
 
 print("Combined WoE calculations have been saved to 'combined_woe_calculations.xlsx'")
+print("Information Value (IV) calculations have been saved to 'iv_calculations.xlsx'")
