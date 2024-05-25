@@ -1,0 +1,78 @@
+import pandas as pd
+import numpy as np
+from io import StringIO
+
+# Sample dataset including multiple variables
+data = """
+score_bins,cure15,count,variable,month
+A,0,100,Variable1,2021-01
+A,1,20,Variable1,2021-01
+B,0,150,Variable1,2021-01
+B,1,30,Variable1,2021-01
+C,0,200,Variable1,2021-01
+C,1,50,Variable1,2021-01
+A,0,110,Variable1,2022-01
+A,1,25,Variable1,2022-01
+B,0,160,Variable1,2022-01
+B,1,35,Variable1,2022-01
+C,0,210,Variable1,2022-01
+C,1,55,Variable1,2022-01
+A,0,90,Variable2,2021-01
+A,1,15,Variable2,2021-01
+B,0,140,Variable2,2021-01
+B,1,25,Variable2,2021-01
+C,0,190,Variable2,2021-01
+C,1,45,Variable2,2021-01
+A,0,95,Variable2,2022-01
+A,1,20,Variable2,2022-01
+B,0,155,Variable2,2022-01
+B,1,30,Variable2,2022-01
+C,0,205,Variable2,2022-01
+C,1,50,Variable2,2022-01
+"""
+
+# Load the sample dataset into a pandas DataFrame
+df = pd.read_csv(StringIO(data))
+
+# Create a function to calculate WoE
+def calculate_woe(df, variable):
+    pivot_table = df[df['variable'] == variable].pivot_table(index='score_bins', columns='month', values='count', aggfunc='sum')
+
+    # Calculate total events and nonevents for each month
+    total_events = df[(df['variable'] == variable) & (df['cure15'] == 0)].groupby('month')['count'].sum()
+    total_nonevents = df[(df['variable'] == variable) & (df['cure15'] == 1)].groupby('month')['count'].sum()
+
+    # Calculate WoE for each bin and month
+    woe = pd.DataFrame(index=pivot_table.index)
+
+    for month in pivot_table.columns:
+        events_per_bin = df[(df['variable'] == variable) & (df['month'] == month) & (df['cure15'] == 0)].groupby('score_bins')['count'].sum()
+        nonevents_per_bin = df[(df['variable'] == variable) & (df['month'] == month) & (df['cure15'] == 1)].groupby('score_bins')['count'].sum()
+        
+        events_per_bin = events_per_bin.fillna(0)
+        nonevents_per_bin = nonevents_per_bin.fillna(0)
+        
+        # To avoid division by zero, adding a small value (e.g., 1e-10)
+        events_per_bin = events_per_bin + 1e-10
+        nonevents_per_bin = nonevents_per_bin + 1e-10
+        
+        woe[month] = np.log((events_per_bin / total_events[month]) / (nonevents_per_bin / total_nonevents[month]))
+
+    return woe
+
+# Calculate WoE for each variable
+variables = df['variable'].unique()
+all_woe = []
+
+for var in variables:
+    woe = calculate_woe(df, var)
+    woe['variable'] = var  # Add variable name as a column
+    all_woe.append(woe)
+
+# Concatenate all WoE dataframes into one
+combined_woe = pd.concat(all_woe)
+
+# Save the combined WoE to an Excel file
+combined_woe.to_excel('combined_woe_calculations.xlsx')
+
+print("Combined WoE calculations have been saved to 'combined_woe_calculations.xlsx'")
