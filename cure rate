@@ -1,0 +1,66 @@
+import pandas as pd
+import numpy as np
+from io import StringIO
+
+# Sample dataset including multiple variables
+data = """
+score_bins,cure15,count,var,Date
+A,0,100,Variable1,2021-01
+A,1,20,Variable1,2021-01
+B,0,150,Variable1,2021-01
+B,1,30,Variable1,2021-01
+C,0,200,Variable1,2021-01
+C,1,50,Variable1,2021-01
+A,0,110,Variable1,2022-01
+A,1,25,Variable1,2022-01
+B,0,160,Variable1,2022-01
+B,1,35,Variable1,2022-01
+C,0,210,Variable1,2022-01
+C,1,55,Variable1,2022-01
+A,0,90,Variable2,2021-01
+A,1,15,Variable2,2021-01
+B,0,140,Variable2,2021-01
+B,1,25,Variable2,2021-01
+C,0,190,Variable2,2021-01
+C,1,45,Variable2,2021-01
+A,0,95,Variable2,2022-01
+A,1,20,Variable2,2022-01
+B,0,155,Variable2,2022-01
+B,1,30,Variable2,2022-01
+C,0,205,Variable2,2022-01
+C,1,50,Variable2,2022-01
+"""
+
+# Load the sample dataset into a pandas DataFrame
+df = pd.read_csv(StringIO(data))
+
+# Create a single function to calculate cure rates and insert spaces
+def calculate_cure_rate_with_spaces(df):
+    # Group by variable, score bin, and date, then calculate the cure rate
+    cure_rate = df.groupby(['var', 'score_bins', 'Date']).apply(lambda x: (x[x['cure15'] == 1]['count'].sum() / x['count'].sum()) * 100).reset_index()
+    cure_rate.columns = ['var', 'score_bins', 'Date', 'Cure Rate (%)']
+    
+    # Pivot the table to get a time series format
+    cure_rate_pivot = cure_rate.pivot_table(index=['var', 'score_bins'], columns='Date', values='Cure Rate (%)')
+    
+    # Reset index to convert MultiIndex to columns
+    cure_rate_pivot.reset_index(inplace=True)
+    
+    # Insert a space (NaN row) after each variable
+    spaced_df = []
+    variables = cure_rate_pivot['var'].unique()
+    
+    for var in variables:
+        var_df = cure_rate_pivot[cure_rate_pivot['var'] == var]
+        spaced_df.append(var_df)
+        # Create a DataFrame with NaNs to insert as a gap
+        gap = pd.DataFrame([[var] + [np.nan] * (var_df.shape[1] - 1)], columns=var_df.columns)
+        spaced_df.append(gap)
+    
+    return pd.concat(spaced_df).reset_index(drop=True)
+
+# Calculate cure rates time series at the score bin level with spaces
+cure_rate_score_bin_time_series_spaced = calculate_cure_rate_with_spaces(df)
+
+# Display the DataFrame
+print(cure_rate_score_bin_time_series_spaced)
