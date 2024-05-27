@@ -1,0 +1,4 @@
+with pd.ExcelWriter('multiple_sheets_no_loop.xlsx') as writer:
+    df1.to_excel(writer, sheet_name='Sheet1', index=False)
+    df2.to_excel(writer, sheet_name='Sheet2', index=False)
+    df3.to_excel(writer, sheet_name='Sheet3', index=False)
