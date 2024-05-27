@@ -1,0 +1,44 @@
+import pandas as pd
+import numpy as np
+
+# Define parameters for synthetic data generation
+num_accounts = 100  # Number of unique accounts
+num_months = 24  # Number of months of data
+start_date = '2022-01-01'  # Start date for the time series
+
+# Generate account IDs
+account_ids = [f'ACC{i:03d}' for i in range(1, num_accounts + 1)]
+
+# Generate a date range for the time series
+date_range = pd.date_range(start=start_date, periods=num_months, freq='M')
+
+# Create an empty DataFrame to hold the time series data
+data = pd.DataFrame()
+
+# Populate the DataFrame with synthetic data
+for account_id in account_ids:
+    credit_limit = np.random.uniform(5000, 20000)  # Random credit limit for each account
+    interest_rate = np.random.uniform(10, 25)  # Random interest rate
+    account_age = np.random.randint(1, 60)  # Random account age in months
+    account_data = pd.DataFrame({
+        'AccountID': account_id,
+        'Date': date_range,
+        'TransactionAmount': np.random.uniform(100, 5000, size=num_months),  # Random transaction amounts
+        'CreditLimit': credit_limit,
+        'CurrentBalance': np.random.uniform(0, credit_limit, size=num_months),  # Random current balance
+        'PaymentAmount': np.random.uniform(0, 3000, size=num_months),  # Random payment amounts
+        'LateFees': np.random.uniform(0, 100, size=num_months),  # Random late fees
+        'CreditUtilizationRatio': lambda df: df['CurrentBalance'] / df['CreditLimit'],  # Credit utilization ratio
+        'NumTransactions': np.random.randint(1, 50, size=num_months),  # Random number of transactions
+        'AnnualFee': np.random.uniform(0, 100),  # Random annual fee
+        'InterestRate': interest_rate,
+        'AccountAge': account_age,
+        'MinimumPaymentDue': np.random.uniform(20, 200, size=num_months),  # Random minimum payment due
+        'AccountStatus': np.random.choice(['Active', 'Inactive'], size=num_months, p=[0.95, 0.05])  # Random account status
+    })
+    account_data['CreditUtilizationRatio'] = account_data['CurrentBalance'] / credit_limit
+    data = pd.concat([data, account_data], ignore_index=True)
+
+# Display the first few rows of the DataFrame
+
+data.head(200)
