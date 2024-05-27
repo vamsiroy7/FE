@@ -13,7 +13,7 @@ account_ids = [f'ACC{i:03d}' for i in range(1, num_accounts + 1)]
 date_range = pd.date_range(start=start_date, periods=num_months, freq='M')
 
 # Create an empty DataFrame to hold the time series data
-data = pd.DataFrame()
+data_list = []
 
 # Populate the DataFrame with synthetic data
 for account_id in account_ids:
@@ -28,7 +28,7 @@ for account_id in account_ids:
         'CurrentBalance': np.random.uniform(0, credit_limit, size=num_months),  # Random current balance
         'PaymentAmount': np.random.uniform(0, 3000, size=num_months),  # Random payment amounts
         'LateFees': np.random.uniform(0, 100, size=num_months),  # Random late fees
-        'CreditUtilizationRatio': lambda df: df['CurrentBalance'] / df['CreditLimit'],  # Credit utilization ratio
+        'CreditUtilizationRatio': np.nan,  # Placeholder for credit utilization ratio
         'NumTransactions': np.random.randint(1, 50, size=num_months),  # Random number of transactions
         'AnnualFee': np.random.uniform(0, 100),  # Random annual fee
         'InterestRate': interest_rate,
@@ -37,7 +37,9 @@ for account_id in account_ids:
         'AccountStatus': np.random.choice(['Active', 'Inactive'], size=num_months, p=[0.95, 0.05])  # Random account status
     })
     account_data['CreditUtilizationRatio'] = account_data['CurrentBalance'] / credit_limit
-    data = pd.concat([data, account_data], ignore_index=True)
+    data_list.append(account_data)
+
+data = pd.concat(data_list, ignore_index=True)
 
 # Add temporal aggregations
 data['Year'] = data['Date'].dt.year
@@ -47,24 +49,24 @@ data['DayOfWeek'] = data['Date'].dt.dayofweek
 data['DayOfMonth'] = data['Date'].dt.day
 
 # Add lag features
-data['Lag1_TransactionAmount'] = data.groupby(['AccountID', 'Month'])['TransactionAmount'].shift(1)
-data['Lag2_TransactionAmount'] = data.groupby(['AccountID', 'Month'])['TransactionAmount'].shift(2)
-data['Lag1_CurrentBalance'] = data.groupby(['AccountID', 'Month'])['CurrentBalance'].shift(1)
-data['Lag2_CurrentBalance'] = data.groupby(['AccountID', 'Month'])['CurrentBalance'].shift(2)
+data['Lag1_TransactionAmount'] = data.groupby('AccountID')['TransactionAmount'].shift(1)
+data['Lag2_TransactionAmount'] = data.groupby('AccountID')['TransactionAmount'].shift(2)
+data['Lag1_CurrentBalance'] = data.groupby('AccountID')['CurrentBalance'].shift(1)
+data['Lag2_CurrentBalance'] = data.groupby('AccountID')['CurrentBalance'].shift(2)
 
 # Add rolling statistics
-data['RollingMean_TransactionAmount_3'] = data.groupby(['AccountID', 'Month'])['TransactionAmount'].rolling(window=3).mean().reset_index(level=0, drop=True)
-data['RollingStd_TransactionAmount_3'] = data.groupby(['AccountID', 'Month'])['TransactionAmount'].rolling(window=3).std().reset_index(level=0, drop=True)
-data['RollingMean_CurrentBalance_3'] = data.groupby(['AccountID', 'Month'])['CurrentBalance'].rolling(window=3).mean().reset_index(level=0, drop=True)
-data['RollingStd_CurrentBalance_3'] = data.groupby(['AccountID', 'Month'])['CurrentBalance'].rolling(window=3).std().reset_index(level=0, drop=True)
+data['RollingMean_TransactionAmount_3'] = data.groupby('AccountID')['TransactionAmount'].rolling(window=3).mean().reset_index(level=0, drop=True)
+data['RollingStd_TransactionAmount_3'] = data.groupby('AccountID')['TransactionAmount'].rolling(window=3).std().reset_index(level=0, drop=True)
+data['RollingMean_CurrentBalance_3'] = data.groupby('AccountID')['CurrentBalance'].rolling(window=3).mean().reset_index(level=0, drop=True)
+data['RollingStd_CurrentBalance_3'] = data.groupby('AccountID')['CurrentBalance'].rolling(window=3).std().reset_index(level=0, drop=True)
 
 # Add exponential moving average (EMA)
-data['EMA_TransactionAmount_3'] = data.groupby(['AccountID', 'Month'])['TransactionAmount'].ewm(span=3, adjust=False).mean().reset_index(level=0, drop=True)
-data['EMA_CurrentBalance_3'] = data.groupby(['AccountID', 'Month'])['CurrentBalance'].ewm(span=3, adjust=False).mean().reset_index(level=0, drop=True)
+data['EMA_TransactionAmount_3'] = data.groupby('AccountID')['TransactionAmount'].ewm(span=3, adjust=False).mean().reset_index(level=0, drop=True)
+data['EMA_CurrentBalance_3'] = data.groupby('AccountID')['CurrentBalance'].ewm(span=3, adjust=False).mean().reset_index(level=0, drop=True)
 
 # Add differencing
-data['Diff_TransactionAmount'] = data.groupby(['AccountID', 'Month'])['TransactionAmount'].diff()
-data['Diff_CurrentBalance'] = data.groupby(['AccountID', 'Month'])['CurrentBalance'].diff()
+data['Diff_TransactionAmount'] = data.groupby('AccountID')['TransactionAmount'].diff()
+data['Diff_CurrentBalance'] = data.groupby('AccountID')['CurrentBalance'].diff()
 
 # Add cyclic features
 data['Month_sin'] = np.sin(2 * np.pi * data['Month'] / 12)
