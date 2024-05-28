@@ -17,72 +17,66 @@ data_list = []
 
 # Populate the DataFrame with synthetic data
 for account_id in account_ids:
-    credit_limit = np.random.uniform(5000, 20000)  # Random credit limit for each account
-    interest_rate = np.random.uniform(10, 25)  # Random interest rate
-    account_age = np.random.randint(1, 60)  # Random account age in months
+    credit_limit = np.random.uniform(2000, 20000)  # Random credit limit for each account
+    interest_rate = np.random.uniform(12, 29.99)  # Random interest rate (typical APR range)
+    account_age = np.random.randint(6, 120)  # Random account age in months
+    transaction_amounts = np.random.uniform(50, 3000, size=num_months)  # Random transaction amounts
+    current_balances = np.clip(np.cumsum(transaction_amounts - np.random.uniform(50, 2000, size=num_months)), 0, credit_limit)
+    payment_amounts = np.random.uniform(50, 2000, size=num_months)  # Random payment amounts
+    late_fees = np.where(np.random.rand(num_months) < 0.1, np.random.uniform(0, 40), 0)  # Late fees, 10% chance
+    num_transactions = np.random.randint(1, 30, size=num_months)  # Random number of transactions
+
+    # Calculate additional variables
+    delinquency_status = np.where(current_balances > 0, np.random.choice(['Current', '30-59 Days', '60-89 Days', '90+ Days'], p=[0.85, 0.10, 0.03, 0.02]), 'Current')
+    total_fees_charged = late_fees + np.random.uniform(0, 15, size=num_months)  # Adding random other fees
+    reward_points = np.cumsum(transaction_amounts * 0.01)  # Reward points, 1 point per dollar spent
+
     account_data = pd.DataFrame({
         'AccountID': account_id,
-        'Date': date_range,
-        'TransactionAmount': np.random.uniform(100, 5000, size=num_months),  # Random transaction amounts
+        'StatementDate': date_range,
+        'TransactionAmount': transaction_amounts,  # Random transaction amounts
         'CreditLimit': credit_limit,
-        'CurrentBalance': np.random.uniform(0, credit_limit, size=num_months),  # Random current balance
-        'PaymentAmount': np.random.uniform(0, 3000, size=num_months),  # Random payment amounts
-        'LateFees': np.random.uniform(0, 100, size=num_months),  # Random late fees
-        'CreditUtilizationRatio': np.nan,  # Placeholder for credit utilization ratio
-        'NumTransactions': np.random.randint(1, 50, size=num_months),  # Random number of transactions
+        'CurrentBalance': current_balances,  # Random current balance, realistic growth
+        'PaymentAmount': payment_amounts,  # Random payment amounts
+        'LateFees': late_fees,  # Random late fees, realistic amount
+        'CreditUtilizationRatio': current_balances / credit_limit,  # Credit utilization ratio
+        'NumTransactions': num_transactions,  # Random number of transactions
         'AnnualFee': np.random.uniform(0, 100),  # Random annual fee
         'InterestRate': interest_rate,
         'AccountAge': account_age,
-        'MinimumPaymentDue': np.random.uniform(20, 200, size=num_months),  # Random minimum payment due
-        'AccountStatus': np.random.choice(['Active', 'Inactive'], size=num_months, p=[0.95, 0.05])  # Random account status
+        'MinimumPaymentDue': np.clip(current_balances * 0.02, 20, 200),  # Minimum payment due (2% of balance, min $20, max $200)
+        'AccountStatus': np.where(np.random.rand(num_months) < 0.95, 'Active', 'Inactive'),  # 95% chance of being active
+        'DelinquencyStatus': delinquency_status,  # Random delinquency status
+        'TotalFeesCharged': total_fees_charged,  # Total fees charged
+        'RewardPoints': reward_points  # Reward points
     })
-    account_data['CreditUtilizationRatio'] = account_data['CurrentBalance'] / credit_limit
+
     data_list.append(account_data)
 
 data = pd.concat(data_list, ignore_index=True)
 
-# Add temporal aggregations
-data['Year'] = data['Date'].dt.year
-data['Month'] = data['Date'].dt.month
-data['WeekOfYear'] = data['Date'].dt.isocalendar().week
-data['DayOfWeek'] = data['Date'].dt.dayofweek
-data['DayOfMonth'] = data['Date'].dt.day
+# Display the first few rows of the dataset
+data.head()
 
-# Add lag features
-data['Lag1_TransactionAmount'] = data.groupby('AccountID')['TransactionAmount'].shift(1)
-data['Lag2_TransactionAmount'] = data.groupby('AccountID')['TransactionAmount'].shift(2)
-data['Lag1_CurrentBalance'] = data.groupby('AccountID')['CurrentBalance'].shift(1)
-data['Lag2_CurrentBalance'] = data.groupby('AccountID')['CurrentBalance'].shift(2)
 
-# Add rolling statistics
-data['RollingMean_TransactionAmount_3'] = data.groupby('AccountID')['TransactionAmount'].rolling(window=3).mean().reset_index(level=0, drop=True)
-data['RollingStd_TransactionAmount_3'] = data.groupby('AccountID')['TransactionAmount'].rolling(window=3).std().reset_index(level=0, drop=True)
-data['RollingMean_CurrentBalance_3'] = data.groupby('AccountID')['CurrentBalance'].rolling(window=3).mean().reset_index(level=0, drop=True)
-data['RollingStd_CurrentBalance_3'] = data.groupby('AccountID')['CurrentBalance'].rolling(window=3).std().reset_index(level=0, drop=True)
+Explanation of Variables:
+AccountID: Unique identifier for each account.
+StatementDate: The date of the monthly statement, representing the last payment date of the month.
+TransactionAmount: Total amount of transactions made during the month. This reflects real-life spending behavior.
+CreditLimit: The maximum credit available to the customer, randomly assigned between $2,000 and $20,000.
+CurrentBalance: The outstanding balance at the end of the statement period. Calculated as the cumulative sum of transactions minus payments, ensuring realistic growth within the credit limit.
+PaymentAmount: Total payments made by the customer during the month, reflecting their payment behavior.
+LateFees: Fees charged for late payments, with a 10% chance of occurrence and amounts up to $40, reflecting typical late fee policies.
+CreditUtilizationRatio: The ratio of the current balance to the credit limit, an important factor in credit risk modeling.
+NumTransactions: Number of transactions made during the month, reflecting usage frequency.
+AnnualFee: A random annual fee charged to the account, ranging from $0 to $100, reflecting common practice.
+InterestRate: The annual percentage rate (APR) for the account, ranging from 12% to 29.99%, reflecting typical credit card interest rates.
+AccountAge: The age of the account in months, reflecting how long the account has been open.
+MinimumPaymentDue: The minimum payment required for the month, calculated as 2% of the current balance, with a minimum of $20 and a maximum of $200.
+AccountStatus: The status of the account, with a 95% chance of being 'Active' and a 5% chance of being 'Inactive'.
+DelinquencyStatus: The delinquency status of the account, with probabilities reflecting typical delinquency rates.
+TotalFeesCharged: The total fees charged to the account, including late fees and other random fees.
+RewardPoints: The cumulative reward points earned, based on transaction amounts, with 1 point per dollar spent.
 
-# Add exponential moving average (EMA)
-data['EMA_TransactionAmount_3'] = data.groupby('AccountID')['TransactionAmount'].ewm(span=3, adjust=False).mean().reset_index(level=0, drop=True)
-data['EMA_CurrentBalance_3'] = data.groupby('AccountID')['CurrentBalance'].ewm(span=3, adjust=False).mean().reset_index(level=0, drop=True)
 
-# Add differencing
-data['Diff_TransactionAmount'] = data.groupby('AccountID')['TransactionAmount'].diff()
-data['Diff_CurrentBalance'] = data.groupby('AccountID')['CurrentBalance'].diff()
 
-# Add cyclic features
-data['Month_sin'] = np.sin(2 * np.pi * data['Month'] / 12)
-data['Month_cos'] = np.cos(2 * np.pi * data['Month'] / 12)
-data['DayOfWeek_sin'] = np.sin(2 * np.pi * data['DayOfWeek'] / 7)
-data['DayOfWeek_cos'] = np.cos(2 * np.pi * data['DayOfWeek'] / 7)
-
-# Add inter-transaction times
-data['TimeSinceLastTransaction'] = data.groupby('AccountID')['Date'].diff().dt.days
-
-# Add ratio features
-data['PaymentToBalanceRatio'] = data['PaymentAmount'] / data['CurrentBalance']
-data['LateFeesToBalanceRatio'] = data['LateFees'] / data['CurrentBalance']
-
-# Display the first few rows of the DataFrame
-print(data.head())
-
-# Save the DataFrame to a CSV file for review
-data.to_csv('extended_synthetic_banking_time_series_data_with_month.csv', index=False)
