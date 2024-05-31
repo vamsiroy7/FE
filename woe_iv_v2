@@ -34,17 +34,16 @@ C,1,50,Variable2,2022-01
 # Load the sample dataset into a pandas DataFrame
 df = pd.read_csv(StringIO(data))
 
-# Create a function to calculate WoE and IV
-def calculate_woe_iv(df, var):
+# Create a function to calculate IV
+def calculate_iv(df, var):
     pivot_table = df[df['var'] == var].pivot_table(index='score_bins', columns='Date', values='count', aggfunc='sum')
 
     # Calculate total events and nonevents for each Date
     total_events = df[(df['var'] == var) & (df['cure15'] == 0)].groupby('Date')['count'].sum()
     total_nonevents = df[(df['var'] == var) & (df['cure15'] == 1)].groupby('Date')['count'].sum()
 
-    # Initialize DataFrame to store WoE and IV
-    woe_df = pd.DataFrame(index=pivot_table.index)
-    iv_total = 0  # Initialize total IV for the variable
+    # Initialize DataFrame to store IV
+    iv_df = pd.DataFrame(index=[var])
 
     for date in pivot_table.columns:
         events_per_bin = df[(df['var'] == var) & (df['Date'] == date) & (df['cure15'] == 0)].groupby('score_bins')['count'].sum()
@@ -59,37 +58,26 @@ def calculate_woe_iv(df, var):
         
         # Calculate WoE (non-events / events)
         woe = np.log((nonevents_per_bin / total_nonevents[date]) / (events_per_bin / total_events[date]))
-        woe_df[date] = woe
         
         # Calculate IV for each bin and date
         iv = (nonevents_per_bin / total_nonevents[date] - events_per_bin / total_events[date]) * woe
-        iv_total += iv.sum()  # Sum IV contributions for the variable
+        iv_df[f'{date}'] = iv.sum()
 
-    # Create a DataFrame for IV
-    iv_df = pd.DataFrame({'var': [var], 'total_IV': [iv_total]})
+    iv_df.reset_index(inplace=True)
+    iv_df.columns = ['var'] + list(iv_df.columns[1:])
+    
+    return iv_df
 
-    return woe_df, iv_df
-
-# Calculate WoE and IV for each var
+# Calculate IV for each var
 vars = df['var'].unique()
-all_woe = []
 all_iv = []
 
 for var in vars:
-    woe_df, iv_df = calculate_woe_iv(df, var)
-    woe_df['var'] = var  # Add var name as a column
-    all_woe.append(woe_df)
+    iv_df = calculate_iv(df, var)
     all_iv.append(iv_df)
-
-# Concatenate all WoE dataframes into one
-combined_woe = pd.concat(all_woe).reset_index()
 
 # Concatenate all IV dataframes into one, removing duplicates and gaps
 combined_iv = pd.concat(all_iv).drop_duplicates().reset_index(drop=True)
 
-# Save the combined WoE and IV to separate Excel files
-combined_woe.to_excel('combined_woe_calculations.xlsx', index=False)
-combined_iv.to_excel('combined_iv_calculations.xlsx', index=False)
-
-print("WoE calculations have been saved to 'combined_woe_calculations.xlsx'")
-print("IV calculations have been saved to 'combined_iv_calculations.xlsx'")
+# Display the combined IV DataFrame
+print(combined_iv)
