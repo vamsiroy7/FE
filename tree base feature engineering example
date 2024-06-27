@@ -1,0 +1,27 @@
+import pandas as pd
+import numpy as np
+
+# Setting the random seed for reproducibility
+np.random.seed(42)
+
+# Number of samples
+n_samples = 1000
+
+# Generating synthetic data
+data = pd.DataFrame({
+    'customer_id': range(1, n_samples + 1),
+    'age': np.random.randint(18, 70, size=n_samples),
+    'account_balance': np.random.randint(1000, 50000, size=n_samples),
+    'num_of_transactions': np.random.randint(1, 100, size=n_samples),
+    'credit_score': np.random.randint(300, 850, size=n_samples),
+    'num_of_loans': np.random.randint(0, 5, size=n_samples),
+    'loan_amount': np.random.randint(0, 50000, size=n_samples),
+    'income': np.random.randint(20000, 150000, size=n_samples),
+    'employment_status': np.random.choice(['Employed', 'Unemployed', 'Self-Employed'], size=n_samples),
+    'education_level': np.random.choice(['High School', 'Bachelor', 'Master', 'PhD'], size=n_samples),
+    'marital_status': np.random.choice(['Single', 'Married', 'Divorced'], size=n_samples),
+    'default_next_6_months': np.random.choice([0, 1], size=n_samples, p=[0.8, 0.2])  # Assuming 20% default rate
+})
+
+# Displaying the first few rows of the dataset
+print(data.head())
