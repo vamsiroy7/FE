@@ -1,0 +1,80 @@
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Dense, Dropout
+from sklearn.model_selection import train_test_split
+
+def generate_features(df, labels):
+    # Convert DataFrame to numpy array for processing with TensorFlow
+    data = df.values
+    labels = labels.values if isinstance(labels, pd.Series) else np.array(labels)
+    
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.1, random_state=42)
+    
+    # Define the full model
+    full_model = Sequential([
+        Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
+        Dropout(0.2),
+        Dense(64, activation='relu'),
+        Dense(32, activation='relu'),
+        Dense(1, activation='sigmoid')  # Example for a binary classification task
+    ])
+    
+    # Compile the model
+    full_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    
+    # Train the model
+    full_model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.1, verbose=0)
+    
+    # Create a feature extraction model using outputs from the third layer
+    feature_model = Model(inputs=full_model.input, outputs=full_model.layers[3].output)
+    
+    # Use the feature model to transform the data
+    X_train_transformed = feature_model.predict(X_train)
+    X_test_transformed = feature_model.predict(X_test)
+    
+    # Create DataFrames that include original and new features
+    transformed_train_df = pd.DataFrame(X_train_transformed, columns=[f'Transformed_Feature_{i}' for i in range(X_train_transformed.shape[1])])
+    transformed_test_df = pd.DataFrame(X_test_transformed, columns=[f'Transformed_Feature_{i}' for i in range(X_test_transformed.shape[1])])
+    
+    train_df = pd.concat([df.iloc[:len(X_train)].reset_index(drop=True), transformed_train_df], axis=1)
+    test_df = pd.concat([df.iloc[len(X_train):].reset_index(drop=True), transformed_test_df], axis=1)
+    
+    # Return the DataFrames containing original and new features
+    return train_df, test_df
+
+# Example usage on the synthetic banking dataset
+
+# Generate the synthetic banking dataset
+np.random.seed(42)
+n_samples = 1000
+
+data = pd.DataFrame({
+    'customer_id': range(1, n_samples + 1),
+    'age': np.random.randint(18, 70, size=n_samples),
+    'account_balance': np.random.randint(1000, 50000, size=n_samples),
+    'num_of_transactions': np.random.randint(1, 100, size=n_samples),
+    'credit_score': np.random.randint(300, 850, size=n_samples),
+    'num_of_loans': np.random.randint(0, 5, size=n_samples),
+    'loan_amount': np.random.randint(0, 50000, size=n_samples),
+    'income': np.random.randint(20000, 150000, size=n_samples),
+    'employment_status': np.random.choice(['Employed', 'Unemployed', 'Self-Employed'], size=n_samples),
+    'education_level': np.random.choice(['High School', 'Bachelor', 'Master', 'PhD'], size=n_samples),
+    'marital_status': np.random.choice(['Single', 'Married', 'Divorced'], size=n_samples),
+    'default_next_6_months': np.random.choice([0, 1], size=n_samples, p=[0.8, 0.2])  # Assuming 20% default rate
+})
+
+# Dropping the non-numeric columns for simplicity and separating target variable
+df = data.drop(columns=['customer_id', 'employment_status', 'education_level', 'marital_status'])
+target = df.pop('default_next_6_months')
+
+# Apply the generate_features function to the dataset
+train_df, test_df = generate_features(df, target)
+
+# Display the first few rows of the transformed train DataFrame
+print(train_df.head())
+
+# Display the first few rows of the transformed test DataFrame
+print(test_df.head())
