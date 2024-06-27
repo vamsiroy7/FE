@@ -1,0 +1,6 @@
+# Applying tree-based feature engineering
+y = data['default_next_6_months']
+features = data.drop(columns=['customer_id', 'default_next_6_months'])
+processed_data = tree_based_feature_engineering(features, y, random_state=42)
+
+print(processed_data.head())
